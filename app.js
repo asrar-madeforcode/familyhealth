@@ -1,7 +1,7 @@
 /* Family Health Tracker — © 2026 Asrar Ahmed Junedi. All rights reserved. */
 'use strict';
 
-const APP_VERSION = '2.2.1';
+const APP_VERSION = '2.2.2';
 const COPYRIGHT = '© 2026 Asrar Ahmed Junedi. All rights reserved.';
 const MAX_PEOPLE = 10;
 const NATIVE = window.BPNative || null;
@@ -979,7 +979,7 @@ function personSheet(id) {
   };
   $('#pf-cam', el).onchange = onPh; $('#pf-gal', el).onchange = onPh;
   let sunit = p && p.sugarUnit || 'mg/dL', sex = p && p.sex || null;
-  $$('#pf-sex button', el).forEach(b => b.onclick = () => { sex = b.dataset.s; $$('#pf-sex button', el).forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); }); });
+  $$('#pf-sex button', el).forEach(b => b.onclick = () => { sex = b.dataset.s; const fb = b.closest('.field'); if (fb) fb.classList.remove('need'); $$('#pf-sex button', el).forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); }); });
   bindCondPicker(el, () => sex);
   $$('[data-cond="dm"]', el).forEach(b => b.addEventListener('click', () => { const on = b.classList.contains('on'); $('#pf-sunit-card', el).hidden = !on; $('#pf-sunit-row', el).hidden = !on; }));
   $$('#pf-sunit button', el).forEach(b => b.onclick = () => { sunit = b.dataset.u; $$('#pf-sunit button', el).forEach(x => x.classList.toggle('on', x === b)); });
@@ -990,8 +990,16 @@ function personSheet(id) {
     const height = $('#pf-h', el).value ? +(+$('#pf-h', el).value).toFixed(1) : null;
     const weight = $('#pf-w', el).value ? +(+$('#pf-w', el).value).toFixed(1) : null;
     const err = $('#pf-err', el);
-    const bad = !name ? 'Please enter a name.' : !sex ? 'Please choose female or male.' : (age != null && (age < 1 || age > 120)) ? 'Age should be between 1 and 120.' : (height != null && (height < 50 || height > 250)) ? 'Height should be between 50 and 250 cm.' : (weight != null && (weight < 2 || weight > 350)) ? 'Weight should be between 2 and 350 kg.' : '';
-    if (bad) { err.textContent = bad; err.hidden = false; return; }
+    const bad = !name ? 'Please enter a name.' : (!sex && !p) ? 'Please choose female or male.' : (age != null && (age < 1 || age > 120)) ? 'Age should be between 1 and 120.' : (height != null && (height < 50 || height > 250)) ? 'Height should be between 50 and 250 cm.' : (weight != null && (weight < 2 || weight > 350)) ? 'Weight should be between 2 and 350 kg.' : '';
+    $$('.need', el).forEach(x => x.classList.remove('need'));
+    if (bad) {
+      err.textContent = tr(bad); err.hidden = false;
+      // show the problem where the person is looking: jump to the field, mark it, and say why
+      const f = $(!name ? '#pf-name' : (!sex && !p) ? '#pf-sex' : (age != null && (age < 1 || age > 120)) ? '#pf-age' : (height != null && (height < 50 || height > 250)) ? '#pf-h' : '#pf-w', el);
+      const box = f && (f.closest('.field') || f);
+      if (box) { box.classList.add('need'); box.scrollIntoView({ behavior: 'smooth', block: 'center' }); if (f.focus && f.tagName === 'INPUT') f.focus({ preventScroll: true }); }
+      toast(bad); return;
+    }
     const rec = p ? Object.assign({}, p, { name, age, height, weight, updated: Date.now() }) : { id: uid(), name, age, height, weight, created: Date.now() };
     rec.sex = sex; readCondPicker(el, rec); rec.sugarUnit = sunit;
     rec.sex = sex;

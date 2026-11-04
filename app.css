@@ -159,6 +159,8 @@ textarea.input { min-height: 70px; resize: vertical; }
 .seg button { border: 0; background: none; min-height: 44px; font-weight: 650; font-size: .9rem; color: var(--muted); padding: 0 6px; }
 .seg button.on { background: var(--accent); color: var(--on-accent); }
 .err { color: var(--c-stage2); font-size: .88rem; font-weight: 600; }
+.field.need { outline: 2px solid var(--c-stage2); outline-offset: 4px; border-radius: 10px; }
+.field.need > .lbl::after, .field.need > label::after { content: ' *'; color: var(--c-stage2); }
 .switch { position: relative; width: 50px; height: 30px; flex: none; }
 .switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; z-index: 1; }
 .switch span { position: absolute; inset: 0; border-radius: 30px; background: var(--line); transition: background .2s; }
