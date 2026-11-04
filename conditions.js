@@ -70,7 +70,7 @@ function readCondPicker(el, rec) {
   rec.custom = $$('.cust-row', box).map(r => ({ id: r.dataset.id, name: $('[data-f="name"]', r).value.trim(), measure: $('[data-f="measure"]', r).value.trim(), unit: $('[data-f="unit"]', r).value.trim() })).filter(c => c.name);
 }
 function customCond(c) {
-  return { k: 'custom:' + c.id, l: c.name, custom: c, track: [], labs: [], about: 'Your own condition. Keep notes, symptoms' + (c.measure ? ' and ' + c.measure : '') + ' here, and add the medicines and appointments for it.',
+  return { k: 'custom:' + c.id, l: c.name, custom: c, track: [], labs: [], about: c.measure ? T('Your own condition. Keep notes, symptoms and {m} here, and add the medicines and appointments for it.', { m: c.measure }) : T('Your own condition. Keep notes and symptoms here, and add the medicines and appointments for it.'),
     care: ['Follow the plan from your doctor and keep your medicines and appointments in the app.'], avoid: [], urgent: ['If you feel suddenly much worse, call 997.'], ask: ['What should I watch for?', 'When should I come back?'], remedies: [] };
 }
 
@@ -81,7 +81,7 @@ async function labSeries(p, key) {
   for (const d of S.docs || []) for (const r of d.results || []) if (r.key === key) out.push({ ts: d.date ? new Date(d.date + 'T12:00').getTime() : d.created, v: r.value, unit: r.unit, src: 'report', doc: d.id });
   return out.sort((a, b) => b.ts - a.ts);
 }
-function labName(k) { const t = (typeof BPLab !== 'undefined' && BPLab.tests || []).find(x => x.key === k); return t ? t.name : k; }
+function labName(k) { const t = (typeof BPLab !== 'undefined' && BPLab.tests || []).find(x => x.key === k); return t ? T(t.name) : k; }
 function labRate(k, v, unit, p) {
   if (k === 'inr' && p && hasCond(p, 'inr')) { const [lo, hi] = p.inrTarget || [2, 3]; return v < lo ? { flag: 'low', label: 'Below your target' } : v > hi ? { flag: 'high', label: 'Above your target' } : { flag: 'normal', label: 'In your target range' }; }
   try { const r = BPLab.reRate({ key: k, value: v, unit }); return r && r.flag ? { flag: r.flag, label: r.label } : null; } catch { return null; }
@@ -227,6 +227,29 @@ function remedyHTML(p, keys) {
 }
 
 /* ---- Today screen card and the condition screen */
+/* removing a condition chosen by mistake: from its own page, with a confirm; readings and results stay */
+const condRemoveBtn = k => `<button class="btn" data-cond-rm="${esc(k)}">${esc(tr('Remove'))}</button>`;
+async function removeCond(p, k) {
+  const c = condOf(p, k); if (!c) return false;
+  if (!(await confirmSheet(T('Remove {cond}?', { cond: tr(c.l) }), T('{cond} will no longer be tracked for {name}. Readings, results and notes already saved stay, and you can add it again any time in Edit person.', { cond: tr(c.l), name: p.name }), 'Remove', true))) return false;
+  const rec = Object.assign({}, p);
+  if (c.custom) rec.custom = (p.custom || []).filter(x => 'custom:' + x.id !== k);
+  else {
+    setConds(rec, personConds(p).filter(x => !x.custom && x.k !== k).map(x => x.k));
+    if (k === 'cancer') delete rec.cancer;
+    if (k === 'preg') delete rec.preg;
+  }
+  rec.updated = Date.now();
+  await DB.put('profiles', rec);
+  return true;
+}
+document.addEventListener('click', async e => {
+  const t = e.target.closest('[data-cond-rm]'); if (!t) return;
+  const p = cur(); if (!p) return;
+  if (!(await removeCond(p, t.dataset.condRm))) return;
+  while (sheetStack.length) sheetStack[sheetStack.length - 1].close();
+  await loadProfiles(); await loadReadings(); render(); toast('Removed');
+});
 async function conditionsCard(p) {
   const pc = personConds(p).filter(c => !(c.women && c.k !== 'pcos' && c.k !== 'meno'));
   const al = await condAlerts(p);
@@ -266,7 +289,7 @@ async function condSheet(k) {
     ${tiles.length ? `<h3 class="sec-h">Your results</h3><div class="hk-grid">${tiles.join('')}</div>` : labs.length ? `<p class="small muted">${esc(T('Tests to track: {list}', { list: labs.map(labName).join(', ') }))}</p>` : ''}
     ${syms.length ? `<h3 class="sec-h">Recent symptoms</h3><div class="small">${syms.map(sy => { const bad = Object.entries(sy.items).filter(([, l]) => l > 0); return `<div class="sym-log"><span class="muted">${esc(fmtDate(sy.ts, { day: 'numeric', month: 'short' }))}</span> ${bad.length ? bad.map(([s, l]) => `${esc(tr(s))} <b>${esc(tr(['None', 'Mild', 'Moderate', 'Severe'][l]))}</b>`).join(', ') : esc(tr('No symptoms'))}${sy.note ? ' · ' + esc(sy.note) : ''}</div>`; }).join('')}</div>` : ''}
     ${condInfoHTML(p, c)}`;
-  const sh = openSheet({ title: tr(c.l), body, full: true, foot: '<button class="btn primary" data-close>Close</button>' });
+  const sh = openSheet({ title: tr(c.l), body, full: true, foot: condRemoveBtn(k) + '<button class="btn primary" data-close>Close</button>' });
   sh.el.addEventListener('click', e => {
     const b = e.target.closest('[data-cnd],[data-lab-hist]'); if (!b) return;
     if (b.dataset.labHist) { labHistSheet(p, b.dataset.labHist); return; }

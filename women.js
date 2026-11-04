@@ -52,7 +52,7 @@ function cycleInfo(log) {
   return { last, len, next, ov, fert: [ov - 5 * dayMs, ov + dayMs], day: Math.floor((Date.now() - dt(last)) / dayMs) + 1, irregular, count: lens.length, late: Math.floor((Date.now() - next) / dayMs) };
 }
 function periodCardHTML(p, ci) {
-  if (ci.none) return `<p class="small muted" style="margin:6px 0 0">Tap “Log” on the first day of your next period. After two periods the app can estimate your cycle.</p>`;
+  if (ci.none) return `<p class="small muted" style="margin:6px 0 0">Open this and tap “Period started” on the first day of your next period. After two periods the app can estimate your cycle.</p>`;
   const f = t => fmtDate(t, { day: 'numeric', month: 'short' });
   const nextIn = Math.ceil((ci.next - Date.now()) / dayMs);
   return `<div class="small" style="margin-top:6px"><b>${esc(T('Day {d} of your cycle', { d: ci.day }))}</b> · ${ci.late > 0 ? `<span style="color:var(--c-stage1);font-weight:700">${esc(T('Period is {n} days late', { n: ci.late }))}</span>` : esc(T('Next period in about {n} days ({date})', { n: Math.max(0, nextIn), date: f(ci.next) }))}</div>
@@ -82,7 +82,7 @@ async function periodSheet(p) {
     ${log.length ? `<h3 class="sec-h">Recent</h3><div class="small">${log.slice(-12).reverse().map(x => `<div class="sym-log"><span class="muted">${esc(f(dt(x.day)))}</span> ${esc(tr({ period: 'Period started', spot: 'Spotting', lh: 'Ovulation test positive', mucus: 'Egg-white discharge', bbt: 'Morning temperature' }[x.type] || x.type))}${x.v ? ' ' + x.v + ' °C' : ''} <button class="linkbtn" data-wldel="${esc(x.id)}">${esc(tr('Remove'))}</button></div>`).join('')}</div>` : ''}
     <div class="btn-row"><button class="btn sm" data-cnd2="sym">Symptom check-in</button></div>
     ${condInfoHTML(p, c)}`;
-  const sh = openSheet({ title: tr(c.l), body, full: true, foot: '<button class="btn primary" data-close>Close</button>' });
+  const sh = openSheet({ title: tr(c.l), body, full: true, foot: condRemoveBtn(c.k) + '<button class="btn primary" data-close>Close</button>' });
   sh.el.addEventListener('click', async e => {
     const b = e.target.closest('[data-wl],[data-wldel],[data-cnd2]'); if (!b) return;
     if (b.dataset.cnd2) { sh.close(); symptomSheet(p, 'period'); return; }
@@ -148,7 +148,7 @@ async function pregSheet(p) {
     ${g ? `<h3 class="sec-h">Visits, tests and scans</h3><div class="mlist">${planRows}</div><p class="small muted">Dates follow the usual schedule; your doctor may book them differently. Edit any reminder under Appointments.</p>` : ''}
     <div class="btn-row" style="flex-wrap:wrap"><button class="btn sm" data-pgm="folic">+ Folic acid reminder</button><button class="btn sm" data-pgm="vit">+ Pregnancy vitamin reminder</button><button class="btn sm" data-cnd2="sym">Symptom check-in</button>${g ? '<button class="btn sm" data-pgdone>Baby is born</button>' : ''}</div>
     ${condInfoHTML(p, c)}`;
-  const sh = openSheet({ title: tr(c.l), body, full: true, foot: '<button class="btn primary" data-close>Close</button>' });
+  const sh = openSheet({ title: tr(c.l), body, full: true, foot: condRemoveBtn(c.k) + '<button class="btn primary" data-close>Close</button>' });
   const el = sh.el;
   $('#pg-save', el).onclick = async () => {
     let lmp = $('#pg-lmp', el).value; const edd = $('#pg-edd', el).value;
@@ -163,7 +163,7 @@ async function pregSheet(p) {
     const b = e.target.closest('[data-pg],[data-pgm],[data-pgdone],[data-cnd2]'); if (!b) return;
     if (b.dataset.cnd2) { sh.close(); symptomSheet(p, 'preg'); return; }
     if (b.dataset.pgm) { sh.close(); medSheet(null, b.dataset.pgm === 'folic' ? { name: 'Folic acid', dose: '400 mcg', times: ['morning'], remind: true, remTimes: { morning: '08:00' } } : { name: 'Pregnancy vitamin', dose: '1 tablet', times: ['morning'], remind: true, remTimes: { morning: '08:00' } }); return; }
-    if (b.dataset.pgdone !== undefined) { if (!(await confirmSheet('Congratulations!', 'Turn off pregnancy tracking for ' + p.name + '? Your records stay.', 'Yes'))) return; setConds(p, personConds(p).map(c2 => c2.k).filter(k => k !== 'preg' && !k.startsWith('custom:'))); p.preg = Object.assign({}, p.preg, { done: dk(Date.now()) }); await DB.put('profiles', p); sh.close(); await loadProfiles(); await loadReadings(); render(); return; }
+    if (b.dataset.pgdone !== undefined) { if (!(await confirmSheet('Congratulations!', T('Turn off pregnancy tracking for {name}? Your records stay.', { name: p.name }), 'Yes'))) return; setConds(p, personConds(p).map(c2 => c2.k).filter(k => k !== 'preg' && !k.startsWith('custom:'))); p.preg = Object.assign({}, p.preg, { done: dk(Date.now()) }); await DB.put('profiles', p); sh.close(); await loadProfiles(); await loadReadings(); render(); return; }
     const x = PREG_PLAN.find(q => q.k === b.dataset.pg); if (!x || !g) return;
     const when = Math.max(dt(g.lmp) + x.w[0] * 7 * dayMs, Date.now() + dayMs);
     await DB.put('appts', { id: uid(), profileId: p.id, kind: x.scan ? 'scan' : 'doctor', title: tr(x.l), place: '', days: null, date: dk(when), time: '09:00', remind: [1440, 120], note: tr(x.d) + ' ' + tr('(Change the date to your booked appointment.)'), pregKey: x.k, created: Date.now() });

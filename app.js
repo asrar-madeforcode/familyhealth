@@ -1,7 +1,7 @@
 /* Family Health Tracker — © 2026 Asrar Ahmed Junedi. All rights reserved. */
 'use strict';
 
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.2.1';
 const COPYRIGHT = '© 2026 Asrar Ahmed Junedi. All rights reserved.';
 const MAX_PEOPLE = 10;
 const NATIVE = window.BPNative || null;
@@ -282,7 +282,7 @@ function renderPeople() {
 
 function profileStats(p) {
   const b = bmi(p);
-  return `<div class="stats num">${p.age ? `<span>Age <b>${esc(p.age)}</b></span>` : ''}${p.height ? `<span>Height <b>${esc(p.height)} cm</b></span>` : ''}${p.weight ? `<span>Weight <b>${esc(p.weight)} kg</b></span>` : ''}${b ? `<span>BMI <b>${b.toFixed(1)}</b> ${bmiLabel(b)}</span>` : ''}</div>`;
+  return `<div class="stats num">${p.age ? `<span>Age <b>${esc(p.age)}</b></span>` : ''}${p.height ? `<span>Height <b>${esc(p.height)} cm</b></span>` : ''}${p.weight ? `<span>Weight <b>${esc(p.weight)} kg</b></span>` : ''}${b ? `<span>BMI <b>${b.toFixed(1)}</b> ${esc(tr(bmiCat(b)[0]))}</span>` : ''}</div>`;
 }
 
 function guideHTML(r) {
@@ -310,7 +310,7 @@ function privacyCardHTML() {
       <li><b>Backups go only where you choose:</b> your own Google Drive or iCloud. A password is optional.</li>
       <li><b>Works without internet.</b> The internet is only used when you open a link yourself, such as calling 997 or sending a WhatsApp message.</li>
       <li><b>You are in control.</b> You can delete a person and all their data at any time, and app updates never remove your data.</li>
-    </ul></div>`;
+    </ul><p class="small" style="margin:8px 0 0"><a href="https://asrar-madeforcode.github.io/familyhealth/privacy.html" target="_blank" rel="noopener">Full privacy policy</a></p></div>`;
 }
 /* ---- the app's creator (About) */
 const CREATOR_PHOTO = true;
@@ -899,13 +899,14 @@ async function renderSettings() {
     ${SLOTS.map((s, i) => `<div class="row"><span style="width:88px;flex:none;font-weight:650">${s.l}</span><input class="input" type="time" id="rem-t-${i}" value="${esc(rem[i].t)}" style="flex:1;min-width:150px;max-width:200px"><span class="spacer"></span><label class="switch" aria-label="${s.l} reminder on"><input type="checkbox" id="rem-on-${i}" ${rem[i].on ? 'checked' : ''}><span></span></label></div>`).join('')}
     </div>
     <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px">${notif}
+    ${NATIVE && NATIVE.exactAlarmsAllowed && !NATIVE.exactAlarmsAllowed() ? '<div class="row"><p class="small" style="margin:0;flex:1;color:var(--c-stage1);font-weight:650">Reminders may come a few minutes late. Allow “Alarms and reminders” so they come on time.</p><button class="btn sm" data-act="allow-exact">Allow</button></div>' : ''}
     ${NATIVE ? '<div class="btn-row"><button class="btn" data-act="test-notif">Test</button><button class="btn primary" data-act="save-rem">Save reminders</button></div>' : '<button class="btn primary block" data-act="ics">Add reminders to Calendar</button><p class="small muted" style="margin:0">Opens your Calendar with three daily alarms. If nothing opens, open this app’s link in Safari and tap the button there.</p>'}
     </div>
   </div>
   ${privacyCardHTML()}
   <div class="card"><h2>Medicine reminders</h2>${medRem.length ? `<div class="mlist" style="margin-top:0">${medRem.map(m => `<div class="mrow" style="cursor:default"><span class="mic">${PILL_ICON}</span><span style="min-width:0;flex:1"><b>${esc(m.t)}</b> ${esc(m.med)}<br><span class="small muted">${esc(m.who)}</span></span></div>`).join('')}</div>` : '<p class="small muted" style="margin:0">No medicine reminders yet. Open a medicine on the Today screen and turn on \u201CRemind me to take it\u201D.</p>'}
     ${!NATIVE && medRem.length ? '<p class="small muted" style="margin:8px 0 0">\u201CAdd reminders to Calendar\u201D above also adds these medicine reminders.</p>' : ''}</div>
-  ${IOS_APP && NATIVE.healthStatus ? healthSettingsHTML() : stepsSettingsHTML()}
+  ${IOS_APP && NATIVE.healthStatus ? healthSettingsHTML() : stepsSettingsHTML() + hcSettingsHTML()}
   ${await devicesSettingsHTML()}
   <div class="card"><h2>Language</h2><div class="field"><label for="set-lang">App language</label>${langSelect()}</div><p class="small muted" style="margin:8px 0 0">PDF reports stay in English so doctors and labs can read them.</p></div>
   <div class="card"><h2>Guidance</h2><p class="small muted" style="margin-top:0">What the numbers mean, precautions, and how to measure correctly.</p><button class="btn block" data-act="guide">Open guide</button></div>
@@ -1004,7 +1005,7 @@ function personSheet(id) {
     sh.close();
     await loadProfiles();
     if (!p) await selectPerson(rec.id); else { await loadReadings(); render(); }
-    toast(p ? 'Saved' : `${name} added`);
+    toast(p ? 'Saved' : T('{name} added', { name }));
     if (!p && NATIVE && !LS.get('bp.askedNotif', false)) { LS.set('bp.askedNotif', true); NATIVE.requestNotifications(); }
   };
   const del = $('[data-del]', el);
@@ -2121,6 +2122,7 @@ document.addEventListener('click', async (e) => {
     case 'add-steps': stepsSheet(); break;
     case 'dose': { const p = cur(); if (!p) break; const on = !doseTaken(t.dataset.med, t.dataset.k); await setDose(p.id, t.dataset.med, t.dataset.k, on, 'phone'); await loadReadings(); render(); toast(on ? 'Medicine taken' : 'Not taken'); break; }
     case 'hk-more': case 'hk-ecg': hkSheet(); break;
+    case 'allow-exact': if (NATIVE && NATIVE.openExactAlarmSettings) NATIVE.openExactAlarmSettings(); break;
     case 'em-again': remindAgain(); break;
     case 'wbp-more': wbpSheet(); break;
     case 'wbp-cuff': { const sh = inSheet && sheetStack.find(x => x.el === inSheet); if (sh) sh.close(); readingSheet(); break; }
@@ -2193,7 +2195,10 @@ window.bpOpenAdd = () => { if (!window.bpReady) { window.bpPendingAdd = true; re
     if (window.bpPendingAdd) { window.bpPendingAdd = false; window.bpOpenAdd(); }
     if (NATIVE && !LS.get('bp.askedNotif', false) && S.profiles.length) { LS.set('bp.askedNotif', true); NATIVE.requestNotifications(); }
     syncMedReminders();
+    // remember when this phone started using the app: the 14-day free trial is counted from here (payment is not switched on yet)
+    if (!LS.get('bp.installedAt', 0)) { let t = 0; try { t = NATIVE && NATIVE.installedAt ? +NATIVE.installedAt() : 0; } catch { t = 0; } LS.set('bp.installedAt', t || Date.now()); }
     if (IOS_APP) { setTimeout(() => { window.bpWatchInbox(); window.bpOnHealth(); }, 600); }
+    else if (isHC()) setTimeout(() => window.bpOnHealth(), 800);
     setTimeout(autoSyncDevices, 1500);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(autoSyncDevices, 800); });
     setTimeout(() => autoBackup(false), 4000);
